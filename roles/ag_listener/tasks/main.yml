@@ -1,0 +1,10 @@
+---
+- name: Configure availability group listener
+  lowlydba.sqlserver.ag_listener:
+    sql_instance: "{{ sql_instance_name }}"
+    availability_group: "{{ ag_name }}"
+    name: "{{ listener_name }}"
+    port: "{{ listener_port }}"
+    ip_addresses: "{{ listener_ips }}"
+    state: present
+  when: inventory_hostname == ag_primary_replica

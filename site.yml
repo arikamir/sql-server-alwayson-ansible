@@ -1,0 +1,17 @@
+---
+- name: Build SQL Server Always-On Availability Group
+  hosts: sql_cluster
+  gather_facts: false
+  vars:
+    ag_primary_replica: "{{ groups['sql_primary'][0] }}"
+  roles:
+    - role: windows_cluster
+      tags: ['cluster']
+    - role: enable_alwayson
+      tags: ['alwayson']
+    - role: availability_group
+      tags: ['availability_group']
+    - role: ag_listener
+      tags: ['listener']
+    - role: validate_cluster
+      tags: ['validation']

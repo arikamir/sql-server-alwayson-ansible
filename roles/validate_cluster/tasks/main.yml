@@ -1,0 +1,29 @@
+---
+- name: Gather WSFC group status
+  ansible.windows.win_shell: |
+    Get-ClusterGroup -Cluster {{ cluster_name }} | Select-Object Name, State | ConvertTo-Json -Depth 2
+  register: cluster_groups
+
+- name: Show WSFC group status
+  ansible.builtin.debug:
+    msg: "Cluster groups: {{ cluster_groups.stdout }}"
+  when: cluster_groups.stdout is defined
+
+- name: Gather AG health via dbatools
+  ansible.windows.win_shell: |
+    Import-Module dbatools
+    Get-DbaAvailabilityGroup -SqlInstance $env:COMPUTERNAME | Select-Object Name, PrimaryReplica, SynchronizationState | ConvertTo-Json
+  register: ag_health
+
+- name: Show AG health output
+  ansible.builtin.debug:
+    msg: "AG health: {{ ag_health.stdout }}"
+  when: ag_health.stdout is defined
+
+- name: Optionally perform manual failover for validation
+  ansible.windows.win_shell: |
+    Import-Module dbatools
+    Switch-DbaAvailabilityGroup -SqlInstance $env:COMPUTERNAME -Name {{ ag_name }} -NewPrimary {{ groups['sql_secondary'][0] }}
+  when:
+    - run_validation_failover | bool
+    - inventory_hostname == ag_primary_replica

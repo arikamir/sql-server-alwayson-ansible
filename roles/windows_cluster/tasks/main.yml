@@ -1,0 +1,42 @@
+---
+- name: Ensure Failover Clustering features are present
+  ansible.windows.win_feature:
+    name:
+      - Failover-Clustering
+      - RSAT-Clustering-Mgmt
+      - RSAT-Clustering-PowerShell
+    include_management_tools: true
+    state: present
+  register: wsfc_features
+
+- name: Reboot after feature install if required
+  ansible.windows.win_reboot:
+    post_reboot_delay: 30
+  when: wsfc_features.reboot_required | default(false)
+
+- name: Create or update the cluster from the primary node
+  when: inventory_hostname == ag_primary_replica
+  oatakan.windows_cluster.cluster:
+    name: "{{ cluster_name }}"
+    nodes: "{{ cluster_nodes }}"
+    admin_user: "{{ domain_admin_user }}"
+    admin_password: "{{ domain_admin_password }}"
+    static_ip: "{{ cluster_static_ip }}"
+    witness_type: "{{ quorum_witness_type }}"
+    witness_path: "{{ cluster_witness_share }}"
+    state: present
+
+- name: Join secondary node to the cluster
+  when: inventory_hostname != ag_primary_replica
+  oatakan.windows_cluster.node:
+    name: "{{ cluster_name }}"
+    admin_user: "{{ domain_admin_user }}"
+    admin_password: "{{ domain_admin_password }}"
+    state: present
+
+- name: Validate cluster quorum witness configuration
+  when: inventory_hostname == ag_primary_replica
+  oatakan.windows_cluster.quorum:
+    name: "{{ cluster_name }}"
+    witness_type: "{{ quorum_witness_type }}"
+    witness_path: "{{ cluster_witness_share }}"

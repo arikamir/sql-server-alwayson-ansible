@@ -1,0 +1,60 @@
+---
+- name: Ensure the HADR endpoint exists
+  lowlydba.sqlserver.endpoint:
+    sql_instance: "{{ sql_instance_name }}"
+    name: AlwaysOnEndpoint
+    endpoint_type: DatabaseMirroring
+    state: present
+    port: "{{ ag_endpoint_port }}"
+    owner: "{{ sql_svc_account }}"
+    encryption: REQUIRED
+    authentication: WINDOWS
+
+- name: Initialize replica configuration fact
+  ansible.builtin.set_fact:
+    ag_replicas: []
+  when: inventory_hostname == ag_primary_replica
+  run_once: true
+  delegate_to: "{{ ag_primary_replica }}"
+
+- name: Build replica configuration list on the primary node
+  ansible.builtin.set_fact:
+    ag_replicas: "{{ ag_replicas + [ {
+      'server': item,
+      'endpoint_url': 'TCP://' ~ (hostvars[item].ansible_host | default(item)) ~ ':' ~ (ag_endpoint_port | string),
+      'failover_mode': (ag_failover_mode if item == ag_primary_replica else 'Manual'),
+      'availability_mode': ag_synchronization_mode,
+      'seeding_mode': ag_seeding_mode
+    } ] }}"
+  loop: "{{ groups['sql_cluster'] }}"
+  when: inventory_hostname == ag_primary_replica
+  run_once: true
+  delegate_to: "{{ ag_primary_replica }}"
+
+- name: Create or update the availability group on the primary node
+  lowlydba.sqlserver.availability_group:
+    sql_instance: "{{ sql_instance_name }}"
+    name: "{{ ag_name }}"
+    databases: "{{ ag_databases }}"
+    replicas: "{{ ag_replicas }}"
+    seeding_mode: "{{ ag_seeding_mode }}"
+  when: inventory_hostname == ag_primary_replica
+
+- name: Join replica to the availability group
+  lowlydba.sqlserver.availability_group_replica:
+    sql_instance: "{{ sql_instance_name }}"
+    availability_group: "{{ ag_name }}"
+    replica_name: "{{ inventory_hostname }}"
+    failover_mode: "{{ ag_failover_mode if inventory_hostname == ag_primary_replica else 'Manual' }}"
+    availability_mode: "{{ ag_synchronization_mode }}"
+    seeding_mode: "{{ ag_seeding_mode }}"
+    state: joined
+
+- name: Ensure databases are part of the availability group
+  lowlydba.sqlserver.availability_group_database:
+    sql_instance: "{{ sql_instance_name }}"
+    availability_group: "{{ ag_name }}"
+    database: "{{ item }}"
+    state: present
+  loop: "{{ ag_databases }}"
+  when: inventory_hostname == ag_primary_replica

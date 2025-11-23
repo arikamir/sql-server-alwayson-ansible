@@ -1,0 +1,25 @@
+---
+- name: Derive SQL Server service name
+  ansible.builtin.set_fact:
+    sql_service_name: "{{ 'MSSQLSERVER' if sql_instance_name == 'MSSQLSERVER' else 'MSSQL$' ~ sql_instance_name }}"
+
+- name: Ensure SQL Server service runs under the domain service account
+  ansible.windows.win_service:
+    name: "{{ sql_service_name }}"
+    username: "{{ sql_svc_account }}"
+    password: "{{ sql_svc_password }}"
+    state: started
+  register: svc_update
+
+- name: Restart SQL Server service if credentials changed
+  ansible.windows.win_service:
+    name: "{{ sql_service_name }}"
+    state: restarted
+  when: svc_update.changed | default(false)
+
+- name: Enable Always-On Availability Groups feature
+  ansible.builtin.include_role:
+    name: oatakan.windows_sql_server.alwayson_common
+  vars:
+    sql_instance: "{{ sql_instance_name }}"
+    restart_service: true

@@ -1,0 +1,27 @@
+---
+dns_domain: example.com
+cluster_name: SqlCluster01
+cluster_static_ip: 192.168.10.120
+cluster_nodes:
+  - sql01
+  - sql02
+cluster_witness_share: "\\\\fs01.example.com\\WSFCWitness"
+listener_name: SqlAgListener01
+listener_port: 1433
+listener_ips:
+  - address: 192.168.10.125
+    subnet_mask: 255.255.255.0
+ag_name: SalesAg
+ag_databases:
+  - SalesDb
+sql_instance_name: MSSQLSERVER
+sql_svc_account: EXAMPLE\\sqlsvc
+sql_svc_password: "{{ vault_sql_svc_password }}"
+domain_admin_user: EXAMPLE\\ansiblejoin
+domain_admin_password: "{{ vault_domain_admin_password }}"
+ag_endpoint_port: 5022
+ag_failover_mode: Automatic
+ag_synchronization_mode: SynchronousCommit
+ag_seeding_mode: Automatic
+run_validation_failover: false
+quorum_witness_type: FileShare
